@@ -10,3 +10,9 @@ edition = "2018"
 ggez = "0.5.1"
 rand = "0.8.3"
 rayon = "1.5"
+
+[profile.dev]
+opt-level = 3
+
+[profile.release]
+debug = true
