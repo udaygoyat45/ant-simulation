@@ -15,28 +15,28 @@ pub struct Ant {
     wander_strength: f32,
     rust_factor: f32,
 
-    angle: [f32; TOTAL_ANTS],
+    pub angle: [f32; TOTAL_ANTS],
     pub position: [na::Point2<f32>; TOTAL_ANTS],
-    velocity: [na::Vector2<f32>; TOTAL_ANTS],
-    desired_direction: [na::Vector2<f32>; TOTAL_ANTS],
+    pub velocity: [na::Vector2<f32>; TOTAL_ANTS],
+    pub  desired_direction: [na::Vector2<f32>; TOTAL_ANTS],
 
     home_pheromones_direction: [Option<na::Vector2<f32>>; TOTAL_ANTS],
     food_pheromones_direction: [Option<na::Vector2<f32>>; TOTAL_ANTS],
     
-    state: [u8; TOTAL_ANTS],
+    pub state: [u32; TOTAL_ANTS],
 
-    target_food_position: [Option<na::Point2<f32>>; TOTAL_ANTS],
-    target_food_index: [Option<u32>; TOTAL_ANTS],
+    pub target_food_position: [Option<na::Point2<f32>>; TOTAL_ANTS],
+    pub target_food_index: [Option<u32>; TOTAL_ANTS],
     window_size: (f32, f32),
 }
 
 impl Ant {
-    pub fn _initialize(&mut self, angles: &[f32], init_positions: &[na::Point2<f32>]) {
-        for i in 1..TOTAL_ANTS {
-            self.angle[i] = angles[i];
-            self.position[i] = init_positions[i];
-            self.velocity[i] = na::Vector2::new(init_positions[i].x.cos(), init_positions[i].y.sin()) * self.max_speed[i];
-            self.desired_direction[i] = na::Vector2::new(angles[i].cos(), angles[i].sin());
+    pub fn initialize(&mut self, init_data: &[(na::Point2<f32>, f32)]) {
+        for i in 0..TOTAL_ANTS {
+            self.angle[i] = init_data[i].1;
+            self.position[i] = init_data[i].0;
+            self.velocity[i] = na::Vector2::new(init_data[i].0.x.cos(), init_data[i].0.y.sin()) * self.max_speed[i];
+            self.desired_direction[i] = na::Vector2::new(init_data[i].1.cos(), init_data[i].1.sin());
         }
     }
 
@@ -47,14 +47,14 @@ impl Ant {
         let new_desired_direction =  [na::Vector2::new(1.0 as f32, 0.0 as f32); TOTAL_ANTS];
         let new_home_pheromones_direction: [Option<na::Vector2<f32>>; TOTAL_ANTS] =  [None; TOTAL_ANTS];
         let new_food_pheromones_direction: [Option<na::Vector2<f32>>; TOTAL_ANTS] =  [None; TOTAL_ANTS];
-        let new_state: [u8; TOTAL_ANTS] = [0; TOTAL_ANTS];
+        let new_state: [u32; TOTAL_ANTS] = [0; TOTAL_ANTS];
         let new_target_food_position: [Option<na::Point2<f32>>; TOTAL_ANTS] =  [None; TOTAL_ANTS];
         let new_target_food_index: [Option<u32>; TOTAL_ANTS] =  [None; TOTAL_ANTS];
 
         Ant {
-            max_speed: [1.3; TOTAL_ANTS],
-            steer_strength: 5.0,
-            wander_strength: 0.2,
+            max_speed: [50.0; TOTAL_ANTS],
+            steer_strength: 100.0,
+            wander_strength: 0.1,
             rust_factor: 50.0,
             angle: new_angle,
             position: new_position,
@@ -84,8 +84,7 @@ impl Ant {
             .zip(self.home_pheromones_direction.par_iter_mut())
             .zip(self.state.par_iter_mut())
             .zip(self.target_food_position.par_iter_mut())
-            .zip(self.target_food_index.par_iter_mut())
-            .for_each(|(((((((((max_speed, 
+            .for_each(|((((((((max_speed, 
                     angle),
                     position),
                     velocity),
@@ -93,8 +92,7 @@ impl Ant {
                     food_pheromones_direction),
                     home_pheromones_direction),
                     state),
-                    target_food_position),
-                    _target_food_index)| {
+                    target_food_position)| {
 
             let mut rng = StdRng::from_entropy();
             let random_unit_vector = na::Vector2::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0));
@@ -109,23 +107,25 @@ impl Ant {
             } else if *state == 1 {
                 match target_food_position {
                     Some(j) => {
-                        let difference = *j - *position;
-                        *desired_direction = na::Vector2::new(difference.x, difference.y).normalize();
+                        *desired_direction = na::Vector2::from(*j - *position).normalize();
                     },
-                    None => (),
-                }
-            } else {
-                match home_pheromones_direction {
                     None => {
                         *desired_direction = *desired_direction + random_unit_vector * wander_strength;
                         *desired_direction = desired_direction.normalize();
                     },
-                    Some(j) => {
-                        let to_home = na::Point2::new(window_size.0, window_size.1)/2.0 - *position;
-                        let dist_sq = na::distance_squared(&(na::Point2::new(window_size.0, window_size.1)/2.0), &position);
-                        if dist_sq < f32::powi(88.0, 2) {
-                            *desired_direction = na::Vector2::new(to_home.x, to_home.y);
-                        } else {
+                }
+            } else {
+                let to_home = na::Point2::new(window_size.0, window_size.1)/2.0 - *position;
+                let dist_sq = na::distance_squared(&(na::Point2::new(window_size.0, window_size.1)/2.0), &position);
+                if dist_sq < f32::powi(100.0, 2) {
+                    *desired_direction = na::Vector::from(to_home);
+                } else {
+                    match home_pheromones_direction {
+                        None => {
+                            *desired_direction = *desired_direction + random_unit_vector * wander_strength;
+                            *desired_direction = desired_direction.normalize();
+                        },
+                        Some(j) => {
                             *desired_direction = *j;
                         }
                     }
@@ -135,33 +135,63 @@ impl Ant {
             let desired_velocity = *desired_direction * *max_speed;
             let desired_steering_force = (desired_velocity - *velocity) * steer_strength;
             let acceleration = utils::clamp_magnitude(&desired_steering_force, steer_strength);
-            let difference_angle = desired_velocity.angle(&velocity);
-            
-            if difference_angle < 50.0 || difference_angle > 310.0 {
-                if *state == 0 && !food_pheromones_direction.is_none() {
-                    *max_speed = 0.5;
-                }
-                if *state == 1 {
-                    *max_speed = 0.5;
-                }
-                if *state == 2 && !home_pheromones_direction.is_none() {
-                    *max_speed = 0.5;
-                }
-            }
 
             let new_velocity = utils::clamp_magnitude(&(*velocity + acceleration * dt),*max_speed);
-            *velocity = new_velocity;
 
-            let position_increment = *velocity * dt * rust_factor;
+            if !new_velocity.x.is_nan() && !new_velocity.y.is_nan() {
+                *velocity = new_velocity;
+            }
+
+            let position_increment = *velocity * dt; // * rust_factor;
             *position += position_increment;
 
-            if position.x > window_size.0 {position.x = 0.0;}
-            if position.x < 0.0 {position.x = window_size.0;}
-            if position.y > window_size.1 {position.y = 0.0;}
-            if position.y < 0.0 {position.y = window_size.1;}
+            // if position.x > window_size.0 {position.x = 0.0;}
+            // if position.x < 0.0 {position.x = window_size.0;}
+            // if position.y > window_size.1 {position.y = 0.0;}
+            // if position.y < 0.0 {position.y = window_size.1;}
+
+            if position.x > window_size.0 {*velocity = -*velocity; *desired_direction = -*desired_direction;}
+            if position.x < 0.0 {*velocity = -*velocity; *desired_direction = -*desired_direction;}
+            if position.y > window_size.1 {*velocity = -*velocity; *desired_direction = -*desired_direction;}
+            if position.y < 0.0 {*velocity = -*velocity; *desired_direction = -*desired_direction;}
 
             *angle = (velocity.y/velocity.x).atan();
             if velocity[0] < 0.0 {*angle -= PI}
         });
     }
+
+    pub fn set_food_target(&mut self, index: usize, food_position: na::Point2<f32>, food_index: u32) {
+        if self.state[index] == 0 {
+            self.state[index] = 1;
+            self.target_food_index[index] = Some(food_index);
+            self.target_food_position[index] = Some(food_position);
+            self.desired_direction[index] = na::Vector2::from(food_position - self.position[index]).normalize();
+        }
+    }
+
+    pub fn food_acquired(&mut self, index: usize) -> bool {
+        match self.target_food_position[index] {
+            None => false,
+            Some(food_position) => {
+                self.state[index] == 1 && (food_position - self.position[index]).norm() < 5.0
+            }
+        }
+    }
+
+    pub fn set_pheromones_direction(&mut self, index: usize, home_angle: Option<f32>, food_angle: Option<f32>) {
+        match home_angle {
+            None => {self.home_pheromones_direction[index] = None; },
+            Some(j) => {self.home_pheromones_direction[index] = Some(na::Vector2::new(j.cos(), j.sin()));}
+        }
+
+        match food_angle {
+            None => {self.food_pheromones_direction[index] = None; },
+            Some(j) => {self.food_pheromones_direction[index] = Some(na::Vector2::new(j.cos(), j.sin()));}
+        }
+    }
+
+    pub fn set_antiparallel (&mut self, index: usize) {
+        self.velocity[index] = -self.velocity[index];
+    }
+
 }
